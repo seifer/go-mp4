@@ -64,8 +64,10 @@ type clipFilter struct {
 }
 
 type ClipInterface interface {
-	Filter
 	io.ReadSeeker
+
+	Filter() error
+	WriteTo(io.Writer) (n int64, err error)
 }
 
 // Clip returns a filter that extracts a clip between begin and begin + duration (in seconds, starting at 0)
