@@ -4,29 +4,19 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"syscall"
 	"time"
 
-	mp4 "github.com/seifer/go-mp4/stream"
+	"github.com/seifer/go-mp4/stream"
 )
 
 var (
-	ErrClipOutside = errors.New("clip zone is outside video")
-	// ErrTruncatedChunk  = errors.New("chunk was truncated")
+	ErrClipOutside     = errors.New("clip zone is outside video")
+	ErrTruncatedChunk  = errors.New("chunk was truncated")
 	ErrInvalidDuration = errors.New("invalid duration")
 )
-
-type ErrorChunkTrunc struct {
-	m      string
-	i1, i2 int64
-}
-
-func (e *ErrorChunkTrunc) Error() string {
-	return fmt.Sprintf("%s [%d != %d]", e.m, e.i1, e.i2)
-}
 
 type chunk struct {
 	size      int64
@@ -56,7 +46,7 @@ type clipFilter struct {
 	buffer []byte
 	chunks []chunk
 
-	m      *mp4.MP4
+	m      *stream.MP4
 	reader io.Reader
 
 	end   time.Duration
@@ -72,7 +62,7 @@ type ClipInterface interface {
 
 // Clip returns a filter that extracts a clip between begin and begin + duration (in seconds, starting at 0)
 // Il will try to include a key frame at the beginning, and keeps the same chunks as the origin media
-func Clip(m *mp4.MP4, begin, duration time.Duration) (ClipInterface, error) {
+func Clip(m *stream.MP4, begin, duration time.Duration) (ClipInterface, error) {
 	end := begin + duration
 
 	if begin < 0 {
@@ -172,7 +162,7 @@ func (f *clipFilter) Read(buf []byte) (n int, err error) {
 
 		if nn != can {
 			if err == nil {
-				err = &ErrorChunkTrunc{"chunk was truncated: Read", int64(can), int64(nn)}
+				err = ErrTruncatedChunk
 			}
 		}
 	}
@@ -183,7 +173,7 @@ func (f *clipFilter) Read(buf []byte) (n int, err error) {
 func (f *clipFilter) Filter() (err error) {
 	f.buildChunkList()
 
-	bsz := uint32(mp4.BoxHeaderSize)
+	bsz := uint32(stream.BoxHeaderSize)
 	bsz += uint32(f.m.Moov.Size())
 
 	for _, b := range f.m.Boxes() {
@@ -211,7 +201,7 @@ func (f *clipFilter) Filter() (err error) {
 		}
 	}
 
-	buf := make([]byte, mp4.BoxHeaderSize)
+	buf := make([]byte, stream.BoxHeaderSize)
 	binary.BigEndian.PutUint32(buf, uint32(f.m.Mdat.Size()))
 	copy(buf[4:], f.m.Mdat.Type())
 
@@ -261,7 +251,7 @@ func (f *clipFilter) WriteTo(w io.Writer) (n int64, err error) {
 
 		if nnn != csize {
 			if err == nil {
-				err = &ErrorChunkTrunc{"chunk was truncated: WriteTo", csize, nnn}
+				err = ErrTruncatedChunk
 			}
 		}
 
@@ -327,7 +317,7 @@ func (f *clipFilter) WriteToN(dst io.Writer, size int64) (n int64, err error) {
 
 		if nnn != can {
 			if err == nil {
-				err = &ErrorChunkTrunc{"chunk was truncated: WriteToN", can, nnn}
+				err = ErrTruncatedChunk
 			}
 		}
 	}
