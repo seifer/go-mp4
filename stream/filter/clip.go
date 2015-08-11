@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jfbus/mp4"
+	mp4 "github.com/seifer/go-mp4/stream"
 )
 
 var (
